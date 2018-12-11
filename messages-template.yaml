@@ -1,0 +1,161 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Messages Service Stack
+
+
+Mappings:
+
+  LogMap:
+    PapertrailLog:
+      stage: "logs7.papertrailapp.com:23213"
+      test: "logs7.papertrailapp.com:16637"
+      prod: "logs7.papertrailapp.com:16747"
+
+  FunctionName:
+    InternalGetMessagesFunction:
+      test: test-internal-get-messages-messages
+      stage: stage-internal-get-messages-messages
+      prod: prod-internal-get-messages-messages
+    InternalHandleStreamFunction:
+      test: test-internal-handle-stream-messages
+      stage: stage-internal-handle-stream-messages
+      prod: prod-internal-handle-stream-messages
+    WarmUpFunction:
+      test: test-warmup-messages
+      stage: stage-warmup-messages
+      prod: prod-warmup-messages
+
+Parameters:
+  Env:
+    Type: String
+    Default: stage
+    AllowedValues:
+      - test
+      - stage
+      - prod
+    Description: Env name
+
+Globals:
+    Function:
+        Timeout: 300
+        MemorySize: 512
+        Runtime: go1.x
+        Environment:
+          Variables:
+            ENV: !Ref Env
+            PAPERTRAIL_LOG_ADDRESS: !FindInMap [LogMap, PapertrailLog, !Ref Env]
+            DELIVERY_STREAM:
+              Fn::ImportValue:
+                !Join [ "-", [ !Ref Env, DeliveryStreamExportName] ]
+            NEED_WARM_UP_LAMBDA_NAMES: !Join [ ",", [ !FindInMap [FunctionName, InternalGetMessagesFunction, !Ref Env]] ]
+            MESSAGE_TABLE_NAME: !Join [ "-", [ !Ref Env, Messages, Messages] ]
+        Tags:
+          Company: Ringoid
+          Service: messages
+          Environment: !Ref Env
+
+Resources:
+
+  WarmUpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !FindInMap [FunctionName, WarmUpFunction, !Ref Env]
+      Handler: warm_up
+      CodeUri: ./warmup.zip
+      Description: WarmUp messages function
+      Policies:
+        - AWSLambdaFullAccess
+
+  ScheduledWarmUpFunctionRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Scheduled WarmUp lambda function rule
+      ScheduleExpression: rate(8 minutes)
+      State: ENABLED
+      Name: !Join [ "-", [ !Ref Env, warm_up_messages_function_rule] ]
+      Targets:
+        -
+          Arn:
+            Fn::GetAtt:
+              - WarmUpFunction
+              - Arn
+          Id: ScheduledWarmUpFunctionRuleId
+
+  PermissionForEventsToInvokeWarmUpFunction:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WarmUpFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+          - ScheduledWarmUpFunctionRule
+          - Arn
+
+
+  InternalGetMessagesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !FindInMap [FunctionName, InternalGetMessagesFunction, !Ref Env]
+      Handler: get_messages
+      CodeUri: ./get_messages.zip
+      Description: Get Messages function
+      Policies:
+        - AWSLambdaFullAccess
+        - AmazonKinesisFirehoseFullAccess
+        - AmazonDynamoDBFullAccess
+
+  InternalHandleStreamFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !FindInMap [FunctionName, InternalHandleStreamFunction, !Ref Env]
+      Handler: handle_stream
+      CodeUri: ./handle_stream.zip
+      Description: Consumer for Kinesis stream (messages)
+      Policies:
+        - AmazonKinesisFullAccess
+        - AmazonDynamoDBFullAccess
+      Events:
+        CommonEventStreamEvent:
+          Type: Kinesis
+          Properties:
+            Stream:
+              Fn::ImportValue:
+                !Join [ "-", [ !Ref Env, InternalEventStreamExport] ]
+            StartingPosition: TRIM_HORIZON
+            BatchSize: 1
+
+  MessagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+          TableName: !Join [ "-", [ !Ref Env, Messages, Messages] ]
+          BillingMode: PAY_PER_REQUEST
+          AttributeDefinitions:
+            -
+              AttributeName: conversion_id
+              AttributeType: S
+            -
+              AttributeName: message_created_at
+              AttributeType: N
+
+          KeySchema:
+            -
+              AttributeName: conversion_id
+              KeyType: HASH
+            -
+              AttributeName: message_created_at
+              KeyType: RANGE
+
+          Tags:
+            - Key: Company
+              Value: Ringoid
+            - Key: Service
+              Value: messages
+            - Key: Environment
+              Value: !Ref Env
+
+Outputs:
+  InternalGetMessagesFunctionExport:
+    Value: !FindInMap [FunctionName, InternalGetMessagesFunction, !Ref Env]
+    Export:
+      Name: !Join [ "-", [ !Ref Env, InternalGetMessagesFunctionExport] ]

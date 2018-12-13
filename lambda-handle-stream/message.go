@@ -42,7 +42,7 @@ func message(body []byte, userMessageTable string, awsDbClient *dynamodb.DynamoD
 				S: aws.String(conversationId),
 			},
 			commons.MessagesCreatedAtColumnName: {
-				N: aws.String(fmt.Sprintf("%v", aEvent.UnixTime)),
+				N: aws.String(fmt.Sprintf("%v", aEvent.MessageAt)),
 			},
 		},
 		TableName:        aws.String(userMessageTable),

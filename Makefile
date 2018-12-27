@@ -3,7 +3,6 @@ test-all: clean test-deploy
 prod-all: clean prod-deploy
 
 build:
-	go get -u github.com/ringoid/commons
 	@echo '--- Building internal-get-messages-messages function ---'
 	GOOS=linux go build lambda-internal-getmessages/get_messages.go
 	@echo '--- Building warmup-messages function ---'

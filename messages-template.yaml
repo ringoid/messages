@@ -136,7 +136,7 @@ Resources:
               AttributeType: S
             -
               AttributeName: message_created_at
-              AttributeType: N
+              AttributeType: S
 
           KeySchema:
             -

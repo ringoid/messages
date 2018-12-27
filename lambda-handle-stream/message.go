@@ -9,6 +9,7 @@ import (
 	"github.com/ringoid/commons"
 	"github.com/aws/aws-sdk-go/aws"
 	"../apimodel"
+	"time"
 )
 
 func message(body []byte, userMessageTable string, awsDbClient *dynamodb.DynamoDB, lc *lambdacontext.LambdaContext, anlogger *commons.Logger) error {
@@ -22,7 +23,7 @@ func message(body []byte, userMessageTable string, awsDbClient *dynamodb.DynamoD
 	}
 
 	conversationId := apimodel.GenerateConversationId(aEvent.UserId, aEvent.TargetUserId)
-
+	sortKey := fmt.Sprintf("%v_%v", aEvent.MessageAt, time.Now().UTC().String())
 	input := &dynamodb.UpdateItemInput{
 		ExpressionAttributeNames: map[string]*string{
 			"#senderId": aws.String(commons.MessagesSenderIdColumnName),
@@ -42,7 +43,7 @@ func message(body []byte, userMessageTable string, awsDbClient *dynamodb.DynamoD
 				S: aws.String(conversationId),
 			},
 			commons.MessagesCreatedAtColumnName: {
-				N: aws.String(fmt.Sprintf("%v", aEvent.MessageAt)),
+				S: aws.String(sortKey),
 			},
 		},
 		TableName:        aws.String(userMessageTable),

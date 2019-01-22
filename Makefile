@@ -8,7 +8,7 @@ build:
 	@echo '--- Building warmup-messages function ---'
 	GOOS=linux go build lambda-warmup/warm_up.go
 	@echo '--- Building internal-handle-stream-messages function ---'
-	GOOS=linux go build lambda-handle-stream/handle_stream.go lambda-handle-stream/message.go
+	GOOS=linux go build lambda-handle-stream/handle_stream.go lambda-handle-stream/message.go lambda-handle-stream/delete.go
 
 zip_lambda: build
 	@echo '--- Zip internal-get-messages-messages function ---'

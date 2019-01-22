@@ -38,6 +38,11 @@ func handler(ctx context.Context, event events.KinesisEvent) (error) {
 			if err != nil {
 				return err
 			}
+		case commons.DeleteUserConversationInternalEvent:
+			err = delete(body, apimodel.MessageTableName, apimodel.AwsDynamoDbClient, lc, apimodel.Anlogger)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

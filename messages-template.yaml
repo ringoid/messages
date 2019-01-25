@@ -129,6 +129,8 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties:
           TableName: !Join [ "-", [ !Ref Env, Messages, Messages] ]
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
           BillingMode: PAY_PER_REQUEST
           AttributeDefinitions:
             -
